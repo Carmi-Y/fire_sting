@@ -62,10 +62,6 @@ def main():
     # styles = ['notebook', 'grid']
     # plt.style.use(styles)
 
-    # for index, channel in enumerate(channel_names):
-    #     if plot_channel[index]:
-    #         plot_data(data["elapsed_time(s)"], data[channel], f"{file_name} {channel_names_display[index]}", output_path)
-
 
 def find_data_start_index(content, search_string):
     '''
