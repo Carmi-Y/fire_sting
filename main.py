@@ -1,5 +1,6 @@
 import os
 import glob
+import scipy
 import pathlib
 import argparse
 import numpy as np
@@ -54,11 +55,21 @@ def main():
 
     merged_data = flatten_data(raw_data_all_files_df)
 
-    # # Save the data from all files to an excel file
+    # Make sure the numaric fields are actually numeric
+    merged_data["elapsed_time(s)"] = pd.to_numeric(merged_data["elapsed_time(s)"])
+    merged_data["[O2]"] = pd.to_numeric(merged_data["[O2]"])
+
+    # Save the data from all files to an excel file
     merged_data.to_excel(f"{output_path}/oxygen_data.xlsx", index=False)
+    
+    # Index merged_data by file_name
+    merged_data = merged_data.set_index("file_name")
 
+    # Get the reaction rates for each file
+    reaction_rates = get_reaction_rates_df(merged_data)
 
-    # Test
+    # Save the reaction rates to an excel file
+    reaction_rates.to_excel(f"{output_path}/reaction_rates.xlsx", index=False)
 
     # Graph the data
     # styles = ['notebook', 'grid']
@@ -176,6 +187,74 @@ def flatten_data(raw_data_all_files_df):
     merged_data = merged_data.drop(columns=["variable"])
 
     return merged_data
+
+
+def get_reaction_rates_df(merged_data):
+    '''
+    Description
+    ------------
+    Calculate the reaction rates for each file. The first minute of measurement is done is light and the last 3 minutes are done in the dark
+
+    Parameters
+    ----------
+    merged_data : pandas.DataFrame
+        The flattened dataframe containing the data from all files, indexed by file_name
+    
+    Returns
+    -------
+    reaction_rates : pandas.DataFrame
+        The dataframe containing the reaction rates for each file
+    '''
+    # Get the file names
+    unique_file_names = merged_data.index.unique()
+
+    # Initialize lists to store the data
+    file_names = []
+    reaction_rates_light = []
+    intercepts_light = []
+    r_values_light = []
+    p_values_light = []
+    std_errs_light = []
+    reaction_rates_dark = []
+    intercepts_dark = []
+    r_values_dark = []
+    p_values_dark = []
+    std_errs_dark = []
+
+    # Calculate the reaction rates for each file in light and dark
+    for file_name in unique_file_names:
+        file_data = merged_data.xs(file_name)
+        # Get the data between 10 and 50 seconds
+        light_data = file_data[(file_data["elapsed_time(s)"] >= 10) & (file_data["elapsed_time(s)"] <= 50)]
+        # Get the data between 70 and 230 seconds
+        dark_data = file_data[(file_data["elapsed_time(s)"] >= 70) & (file_data["elapsed_time(s)"] <= 230)]
+
+        # Get the light phase data
+        slope_light, intercept_light, r_value_light, p_value_light, std_err_light = scipy.stats.linregress(list(light_data["elapsed_time(s)"]), list(light_data["[O2]"]))
+        # Get the dark phase data
+        slope_dark, intercept_dark, r_value_dark, p_value_dark, std_err_dark = scipy.stats.linregress(list(dark_data["elapsed_time(s)"]), list(dark_data["[O2]"]))
+
+        # Append the data to the lists
+        file_names.append(file_name)
+        reaction_rates_light.append(slope_light)
+        intercepts_light.append(intercept_light)
+        r_values_light.append(r_value_light)
+        p_values_light.append(p_value_light)
+        std_errs_light.append(std_err_light)
+        reaction_rates_dark.append(slope_dark)
+        intercepts_dark.append(intercept_dark)
+        r_values_dark.append(r_value_dark)
+        p_values_dark.append(p_value_dark)
+        std_errs_dark.append(std_err_dark)
+
+
+    reaction_rates = pd.DataFrame({ "file_name": file_names, "reaction_rate_light": reaction_rates_light,
+                                    "intercept_light": intercepts_light, "r_value_light": r_values_light,
+                                    "p_value_light": p_values_light, "std_err_light": std_errs_light,
+                                    "reaction_rate_dark": reaction_rates_dark, "intercept_dark": intercepts_dark,
+                                    "r_value_dark": r_values_dark, "p_value_dark": p_values_dark, "std_err_dark": std_errs_dark })
+    
+    return reaction_rates
 
 
 def plot_data(time, oxygen_concentration, title, save_dir):
