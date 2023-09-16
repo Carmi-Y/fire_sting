@@ -91,6 +91,52 @@ def main():
         
         make_single_exp_plots(oxygen_data_rows["elapsed_time(s)"], oxygen_data_rows["[O2]"], row, f"{file_name}_{channel}", graphs_dir) 
     
+    g100_p1_m100 = 'g100Ep1m100E'
+    g100_p2_m100 = 'g100Ep2m100E'
+    g100_p1_m3000 = 'g100Ep1m3000E'
+    g100_p2_m3000 = 'g100Ep2m3000E'
+
+    g3000_p1_m100 = 'g3000Ep1m100E'
+    g3000_p2_m100 = 'g3000Ep2m100E'
+
+    g3000_p1_m3000 = 'g3000Ep1m3000E'
+    g3000_p2_m3000 = 'g3000Ep2m3000E'
+
+    file_display_name_dict = {
+                                '100 invivo p1 24.01.23' : g100_p1_m100,
+                                '100 invivo p1 26.12.22' : g100_p1_m100,
+
+                                '100 invivo p2 24.01.23' : g100_p2_m100,
+                                '100 invivo p2 26.12.22' : g100_p2_m100,
+                                '100 invivo p2 29.12.22' : g100_p2_m100,
+
+                                '100 max p1 24.01.23' : g100_p1_m3000,
+                                '100 max p1 26.12.22' : g100_p1_m3000,
+                                '100 max p1 29.12.22' : g100_p1_m3000,
+
+                                '100 max p2 24.01.23' : g100_p2_m3000,
+                                '100 max p2 26.12.22' : g100_p2_m3000,
+                                '100 max p2 29.12.22' : g100_p2_m3000,
+
+                                '3000 invivo p1 24.01.23' : g3000_p1_m100,
+                                '3000 invivo p1 26.12.22' : g3000_p1_m100,
+                                '3000 invivo p1 29.12.22' : g3000_p1_m100,
+
+                                '3000 invivo p2 24.01.23' : g3000_p2_m100,
+                                '3000 invivo p2 26.12.22' : g3000_p2_m100,
+                                '3000 invivo p2 29.12.22' : g3000_p2_m100,
+
+                                '3000 max p1 24.01.23' : g3000_p1_m3000,
+                                '3000 max p1 26.12.22' : g3000_p1_m3000,
+                                '3000 max p1 29.12.22' : g3000_p1_m3000,
+
+                                '3000 max p2 24.01.23' : g3000_p2_m3000,
+                                '3000 max p2 26.12.22' : g3000_p2_m3000,
+                                '3000 max p2 29.12.22' : g3000_p2_m3000,
+                            }
+    
+    reaction_rates = add_display_names(reaction_rates, file_display_name_dict)
+
     # Plot the reaction rates
     make_reaction_rate_plots(reaction_rates, graphs_dir)
 
@@ -330,6 +376,32 @@ def make_single_exp_plots(times, oxygen_concentrations, reaction_rate_row ,title
     plt.close("all")
 
 
+def add_display_names(reaction_rates, file_display_name_dict):
+    '''
+    Description
+    ------------
+    Add display names to the reaction rates dataframe as a column named "display_name"
+
+    Parameters
+    ----------
+    reaction_rates : pandas.DataFrame
+        The dataframe containing the reaction rates
+    file_display_name_dict : dict
+        A dictionary containing the file names as keys and the display names as values
+
+    Returns
+    -------
+    reaction_rates : pandas.DataFrame
+        The dataframe containing the reaction rates with the display names added as a column
+    '''
+    display_names = []
+    for index, row in reaction_rates.iterrows():
+        display_names.append(file_display_name_dict[row["file_name"]])
+
+    reaction_rates["display_name"] = display_names
+    return reaction_rates
+
+
 def make_reaction_rate_plots(reaction_rates, save_dir):
     '''
     Plot the reaction rates
@@ -345,21 +417,25 @@ def make_reaction_rate_plots(reaction_rates, save_dir):
     -------
     None   
     '''
-    fig, ax = plt.subplots(2)
-    fig.suptitle("Reaction Rates")
+    fig, ax = plt.subplots(2, figsize=(20, 20))
+    fig.suptitle("Reaction Rates", fontsize=25)
     # Put a boxplot from sns in ax[0] for the light reaction rates
-    sns.boxplot(x="file_name", y="reaction_rate_light", data=reaction_rates, ax=ax[0])
+    sns.boxplot(x="display_name", y="reaction_rate_light", data=reaction_rates, ax=ax[0])
     ax[0].set_title("Light")
-    ax[0].set_xlabel("File Name")
     ax[0].set_ylabel("Reaction Rate (µM/s)")
 
     # Put a boxplot from sns in ax[1] for the dark reaction rates
-    sns.boxplot(x="file_name", y="reaction_rate_dark", data=reaction_rates, ax=ax[1])
+    sns.boxplot(x="display_name", y="reaction_rate_dark", data=reaction_rates, ax=ax[1])
     ax[1].set_title("Dark")
-    ax[1].set_xlabel("File Name")
+    ax[1].set_xlabel("Growth and Measurement Conditions", fontsize=15)
     ax[1].set_ylabel("Reaction Rate (µM/s)")
 
+    # Rotate the x-axis tick labels by 45 degrees
+    ax[0].tick_params(axis='x', labelrotation=-45)
+    ax[1].tick_params(axis='x', labelrotation=-45)
+
     plt.savefig(f"{save_dir}/reaction_rates.png")
+
 
 def create_directory(parent_directory, nested_directory_name):
     '''
