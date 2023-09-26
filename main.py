@@ -91,52 +91,6 @@ def main():
         
         make_single_exp_plots(oxygen_data_rows["elapsed_time(s)"], oxygen_data_rows["[O2]"], row, f"{file_name}_{channel}", graphs_dir) 
     
-    g100_p1_m100 = 'g100Ep1m100E'
-    g100_p2_m100 = 'g100Ep2m100E'
-    g100_p1_m3000 = 'g100Ep1m3000E'
-    g100_p2_m3000 = 'g100Ep2m3000E'
-
-    g3000_p1_m100 = 'g3000Ep1m100E'
-    g3000_p2_m100 = 'g3000Ep2m100E'
-
-    g3000_p1_m3000 = 'g3000Ep1m3000E'
-    g3000_p2_m3000 = 'g3000Ep2m3000E'
-
-    file_display_name_dict = {
-                                '100 invivo p1 24.01.23' : g100_p1_m100,
-                                '100 invivo p1 26.12.22' : g100_p1_m100,
-
-                                '100 invivo p2 24.01.23' : g100_p2_m100,
-                                '100 invivo p2 26.12.22' : g100_p2_m100,
-                                '100 invivo p2 29.12.22' : g100_p2_m100,
-
-                                '100 max p1 24.01.23' : g100_p1_m3000,
-                                '100 max p1 26.12.22' : g100_p1_m3000,
-                                '100 max p1 29.12.22' : g100_p1_m3000,
-
-                                '100 max p2 24.01.23' : g100_p2_m3000,
-                                '100 max p2 26.12.22' : g100_p2_m3000,
-                                '100 max p2 29.12.22' : g100_p2_m3000,
-
-                                '3000 invivo p1 24.01.23' : g3000_p1_m100,
-                                '3000 invivo p1 26.12.22' : g3000_p1_m100,
-                                '3000 invivo p1 29.12.22' : g3000_p1_m100,
-
-                                '3000 invivo p2 24.01.23' : g3000_p2_m100,
-                                '3000 invivo p2 26.12.22' : g3000_p2_m100,
-                                '3000 invivo p2 29.12.22' : g3000_p2_m100,
-
-                                '3000 max p1 24.01.23' : g3000_p1_m3000,
-                                '3000 max p1 26.12.22' : g3000_p1_m3000,
-                                '3000 max p1 29.12.22' : g3000_p1_m3000,
-
-                                '3000 max p2 24.01.23' : g3000_p2_m3000,
-                                '3000 max p2 26.12.22' : g3000_p2_m3000,
-                                '3000 max p2 29.12.22' : g3000_p2_m3000,
-                            }
-    
-    reaction_rates = add_display_names(reaction_rates, file_display_name_dict)
-
     # Plot the reaction rates
     make_reaction_rate_plots(reaction_rates, graphs_dir)
 
@@ -253,6 +207,47 @@ def flatten_data(raw_data_all_files_df):
     return merged_data
 
 
+def get_exp_conditions_from_file_name(file_name):
+    '''
+    Description
+    ------------
+    Get the growth and measurement conditions from the file name
+
+    Parameters
+    ----------
+    file_name : str
+        The name of the file
+
+    Returns
+    -------
+    expreriment_date : str
+        The date of the experiment
+    growth_irradiance : int
+        The growth irradiance in µmol photons m-2 s-1
+    measurement_irradiance : int
+        The measurement irradiance in µmol photons m-2 s-1
+    growth_phase : int
+        The number of the growth phase (1 or 2)
+    '''
+    split_file_name = file_name.split(" ")
+    
+    growth_irradiance = int(split_file_name[0])
+
+    measurement_irradiance_str = split_file_name[1]
+    if measurement_irradiance_str == "invivo":
+        measurement_irradiance = 100
+    elif measurement_irradiance_str == "max":
+        measurement_irradiance = 3000
+    else:
+        raise ValueError(f"Invalid measurement irradiance: {measurement_irradiance_str}")
+    
+    growth_phase = int(split_file_name[2][1])
+
+    expreriment_date = split_file_name[3]
+
+    return expreriment_date, growth_irradiance, measurement_irradiance, growth_phase
+
+
 def get_reaction_rates_df(merged_data):
     '''
     Description
@@ -274,6 +269,10 @@ def get_reaction_rates_df(merged_data):
 
     # Initialize lists to store the data
     file_names = []
+    expreriment_dates = []
+    growth_irradiances = []
+    measurement_irradiances = []
+    growth_phases = []
     chanels = []
     reaction_rates_light = []
     intercepts_light = []
@@ -293,6 +292,9 @@ def get_reaction_rates_df(merged_data):
         # Get the unique channels - as they need to have their own reaction rate entry
         unique_channels = file_data["channel"].unique()
 
+        #get the experiment conditions from the file name
+        expreriment_date, growth_irradiance, measurement_irradiance, growth_phase = get_exp_conditions_from_file_name(file_name)
+
         # Itarate over them as well
         for channel in unique_channels:
             channel_data = file_data[file_data["channel"] == channel]
@@ -309,6 +311,10 @@ def get_reaction_rates_df(merged_data):
 
             # Append the data to the lists
             file_names.append(file_name)
+            expreriment_dates.append(expreriment_date)
+            growth_irradiances.append(growth_irradiance)
+            measurement_irradiances.append(measurement_irradiance)
+            growth_phases.append(growth_phase)
             chanels.append(channel)
             reaction_rates_light.append(slope_light)
             intercepts_light.append(intercept_light)
@@ -322,7 +328,9 @@ def get_reaction_rates_df(merged_data):
             std_errs_dark.append(std_err_dark)
 
 
-    reaction_rates = pd.DataFrame({ "file_name": file_names, 'chanel': chanels, "reaction_rate_light": reaction_rates_light,
+    reaction_rates = pd.DataFrame({ "file_name": file_names, "date": expreriment_dates,  "growth_irradiance": growth_irradiances,
+                                    "measurement_irradiance": measurement_irradiances, "growth_phase": growth_phases,
+                                    "chanel": chanels, "reaction_rate_light": reaction_rates_light,
                                     "intercept_light": intercepts_light, "r_value_light": r_values_light,
                                     "p_value_light": p_values_light, "std_err_light": std_errs_light,
                                     "reaction_rate_dark": reaction_rates_dark, "intercept_dark": intercepts_dark,
@@ -376,35 +384,9 @@ def make_single_exp_plots(times, oxygen_concentrations, reaction_rate_row ,title
     plt.close("all")
 
 
-def add_display_names(reaction_rates, file_display_name_dict):
-    '''
-    Description
-    ------------
-    Add display names to the reaction rates dataframe as a column named "display_name"
-
-    Parameters
-    ----------
-    reaction_rates : pandas.DataFrame
-        The dataframe containing the reaction rates
-    file_display_name_dict : dict
-        A dictionary containing the file names as keys and the display names as values
-
-    Returns
-    -------
-    reaction_rates : pandas.DataFrame
-        The dataframe containing the reaction rates with the display names added as a column
-    '''
-    display_names = []
-    for index, row in reaction_rates.iterrows():
-        display_names.append(file_display_name_dict[row["file_name"]])
-
-    reaction_rates["display_name"] = display_names
-    return reaction_rates
-
-
 def make_reaction_rate_plots(reaction_rates, save_dir):
     '''
-    Plot the reaction rates
+    Plot the reaction rates and save to files
     
     Parameters
     ----------
@@ -417,24 +399,46 @@ def make_reaction_rate_plots(reaction_rates, save_dir):
     -------
     None   
     '''
-    fig, ax = plt.subplots(2, figsize=(20, 20))
-    fig.suptitle("Reaction Rates", fontsize=25)
-    # Put a boxplot from sns in ax[0] for the light reaction rates
-    sns.boxplot(x="display_name", y="reaction_rate_light", data=reaction_rates, ax=ax[0])
-    ax[0].set_title("Light")
-    ax[0].set_ylabel("Reaction Rate (µM/s)")
+    
+    phase_1_data = reaction_rates[reaction_rates["growth_phase"] == 1]
 
-    # Put a boxplot from sns in ax[1] for the dark reaction rates
-    sns.boxplot(x="display_name", y="reaction_rate_dark", data=reaction_rates, ax=ax[1])
-    ax[1].set_title("Dark")
-    ax[1].set_xlabel("Growth and Measurement Conditions", fontsize=15)
-    ax[1].set_ylabel("Reaction Rate (µM/s)")
+    # Make the box plot for phase 1 reaction rates
+    fig, ax = plt.subplots()
+    fig.suptitle("Reaction Rates phase 1")
+    sns.boxplot(x="measurement_irradiance", y="reaction_rate_light", data=phase_1_data, ax=ax)
 
-    # Rotate the x-axis tick labels by 45 degrees
-    ax[0].tick_params(axis='x', labelrotation=-45)
-    ax[1].tick_params(axis='x', labelrotation=-45)
+    ax.set_xlabel("Measurement Irradiance (µmol photons m-2 s-1)")
+    ax.set_ylabel("Reaction Rate (µM/s)")
+    plt.savefig(f"{save_dir}/reaction_rates_phase_1.png")
+    plt.close("all")
 
-    plt.savefig(f"{save_dir}/reaction_rates.png")
+
+    # Get all the phase 2 data
+    phase_2_data = reaction_rates[reaction_rates["growth_phase"] == 2]
+
+    
+
+    
+    # fig, ax = plt.subplots()
+    # fig.suptitle("Reaction Rates", fontsize=25)
+    # # Put a boxplot from sns in ax[0] for the light reaction rates
+    # sns.boxplot(x="display_name", y="reaction_rate_light", data=reaction_rates, ax=ax)
+    # ax.set_title("Light")
+    # ax.set_ylabel("Reaction Rate (µM/s)")
+    # ax.tick_params(axis='x', labelrotation=-90)
+    # # Save the figure
+    # plt.savefig(f"{save_dir}/reaction_rates_light.png")
+    # plt.close("all")
+
+    # fig, ax = plt.subplots()
+    # sns.boxplot(x="display_name", y="reaction_rate_dark", data=reaction_rates, ax=ax)
+    # ax.set_title("Dark")
+    # ax.set_xlabel("Growth and Measurement Conditions")
+    # ax.set_ylabel("Reaction Rate (µM/s)")
+
+    # ax.tick_params(axis='x', labelrotation=90)
+    # plt.savefig(f"{save_dir}/reaction_rates_dark.png")
+    # plt.close("all")
 
 
 def create_directory(parent_directory, nested_directory_name):
