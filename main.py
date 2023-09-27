@@ -248,6 +248,88 @@ def get_exp_conditions_from_file_name(file_name):
     return expreriment_date, growth_irradiance, measurement_irradiance, growth_phase
 
 
+def add_to_lists(file_names, file_name,
+                 expreriment_dates, expreriment_date,
+                 growth_irradiances, growth_irradiance,
+                 measurement_irradiances, measurement_irradiance,
+                 growth_phases, growth_phase,
+                 chanels, channel,
+                 reaction_rates, reaction_rate,
+                 intercepts, intercept,
+                 r_values, r_value,
+                 p_values, p_value,
+                 std_errs, std_err,
+                 is_in_lights, is_in_light):
+    '''
+    Description
+    ------------
+    Add the values to all the lists
+
+    Parameters
+    ----------
+    file_names : list
+        The list of file names
+    file_name : str
+        The file name to add to the list
+    expreriment_dates : list
+        The list of experiment dates
+    expreriment_date : str
+        The experiment date to add to the list
+    growth_irradiances : list
+        The list of growth irradiances
+    growth_irradiance : int
+        The growth irradiance to add to the list
+    measurement_irradiances : list
+        The list of measurement irradiances
+    measurement_irradiance : int
+        The measurement irradiance to add to the list
+    growth_phases : list
+        The list of growth phases
+    growth_phase : int
+        The growth phase to add to the list
+    chanels : list
+        The list of channels
+    channel : int
+        The channel to add to the list
+    reaction_rates : list
+        The list of reaction rates
+    reaction_rate : float
+        The reaction rate to add to the list
+    intercepts : list
+        The list of intercepts
+    intercept : float
+        The intercept to add to the list
+    r_values : list
+        The list of r values
+    r_value : float
+        The r value to add to the list
+    p_values : list
+        The list of p values
+    p_value : float
+        The p value to add to the list
+    std_errs : list
+        The list of std_errs
+    std_err : float
+        The std_err to add to the list
+
+    Returns
+    -------
+    None
+    '''
+    file_names.append(file_name)
+    expreriment_dates.append(expreriment_date)
+    growth_irradiances.append(growth_irradiance)
+    measurement_irradiances.append(measurement_irradiance)
+    growth_phases.append(growth_phase)
+    chanels.append(channel)
+    reaction_rates.append(reaction_rate)
+    intercepts.append(intercept)
+    r_values.append(r_value)
+    p_values.append(p_value)
+    std_errs.append(std_err)
+    is_in_lights.append(is_in_light)
+    
+
 def get_reaction_rates_df(merged_data):
     '''
     Description
@@ -274,16 +356,12 @@ def get_reaction_rates_df(merged_data):
     measurement_irradiances = []
     growth_phases = []
     chanels = []
-    reaction_rates_light = []
-    intercepts_light = []
-    r_values_light = []
-    p_values_light = []
-    std_errs_light = []
-    reaction_rates_dark = []
-    intercepts_dark = []
-    r_values_dark = []
-    p_values_dark = []
-    std_errs_dark = []
+    reaction_rates = []
+    intercepts = []
+    r_values = []
+    p_values = []
+    std_errs = []
+    is_in_lights = []
 
     # Calculate the reaction rates for each file in light and dark
     for file_name in unique_file_names:
@@ -309,34 +387,40 @@ def get_reaction_rates_df(merged_data):
             # Get the dark phase data
             slope_dark, intercept_dark, r_value_dark, p_value_dark, std_err_dark = scipy.stats.linregress(list(dark_data["elapsed_time(s)"]), list(dark_data["[O2]"]))
 
-            # Append the data to the lists
-            file_names.append(file_name)
-            expreriment_dates.append(expreriment_date)
-            growth_irradiances.append(growth_irradiance)
-            measurement_irradiances.append(measurement_irradiance)
-            growth_phases.append(growth_phase)
-            chanels.append(channel)
-            reaction_rates_light.append(slope_light)
-            intercepts_light.append(intercept_light)
-            r_values_light.append(r_value_light)
-            p_values_light.append(p_value_light)
-            std_errs_light.append(std_err_light)
-            reaction_rates_dark.append(slope_dark)
-            intercepts_dark.append(intercept_dark)
-            r_values_dark.append(r_value_dark)
-            p_values_dark.append(p_value_dark)
-            std_errs_dark.append(std_err_dark)
+            # Append the data to the lists - first row row light, second row for dark
+            add_to_lists(file_names, file_name,
+                         expreriment_dates, expreriment_date,
+                         growth_irradiances, growth_irradiance,
+                         measurement_irradiances, measurement_irradiance,
+                         growth_phases, growth_phase,
+                         chanels, channel,
+                         reaction_rates, slope_light,
+                         intercepts, intercept_light,
+                         r_values, r_value_light,
+                         p_values, p_value_light,
+                         std_errs, std_err_light,
+                         is_in_lights, "Yes")
+            
+            add_to_lists(file_names, file_name,
+                         expreriment_dates, expreriment_date,
+                         growth_irradiances, growth_irradiance,
+                         measurement_irradiances, measurement_irradiance,
+                         growth_phases, growth_phase,
+                         chanels, channel,
+                         reaction_rates, slope_dark,
+                         intercepts, intercept_dark,
+                         r_values, r_value_dark,
+                         p_values, p_value_dark,
+                         std_errs, std_err_dark,
+                         is_in_lights, "No")
 
 
-    reaction_rates = pd.DataFrame({ "file_name": file_names, "date": expreriment_dates,  "growth_irradiance": growth_irradiances,
-                                    "measurement_irradiance": measurement_irradiances, "growth_phase": growth_phases,
-                                    "chanel": chanels, "reaction_rate_light": reaction_rates_light,
-                                    "intercept_light": intercepts_light, "r_value_light": r_values_light,
-                                    "p_value_light": p_values_light, "std_err_light": std_errs_light,
-                                    "reaction_rate_dark": reaction_rates_dark, "intercept_dark": intercepts_dark,
-                                    "r_value_dark": r_values_dark, "p_value_dark": p_values_dark, "std_err_dark": std_errs_dark })
+    reaction_rates_df = pd.DataFrame({ "file_name": file_names, "date": expreriment_dates, "is_in_light": is_in_lights, "growth_phase": growth_phases,
+                                    "growth_irradiance": growth_irradiances, "measurement_irradiance": measurement_irradiances,
+                                    "chanel": chanels, "reaction_rate": reaction_rates, "intercept": intercepts,
+                                    "r_value": r_values, "p_value": p_values, "std_err": std_errs })
     
-    return reaction_rates
+    return reaction_rates_df
 
 
 def make_single_exp_plots(times, oxygen_concentrations, reaction_rate_row ,title, save_dir):
@@ -405,18 +489,16 @@ def make_reaction_rate_plots(reaction_rates, save_dir):
     # Make the box plot for phase 1 reaction rates
     fig, ax = plt.subplots()
     fig.suptitle("Reaction Rates phase 1")
-    sns.boxplot(x="measurement_irradiance", y="reaction_rate_light", data=phase_1_data, ax=ax)
+    sns.boxplot(x="measurement_irradiance", y="reaction_rate", hue="is_in_light", data=phase_1_data, ax=ax)
 
     ax.set_xlabel("Measurement Irradiance (µmol photons m-2 s-1)")
     ax.set_ylabel("Reaction Rate (µM/s)")
     plt.savefig(f"{save_dir}/reaction_rates_phase_1.png")
     plt.close("all")
-
+    
 
     # Get all the phase 2 data
     phase_2_data = reaction_rates[reaction_rates["growth_phase"] == 2]
-
-    
 
     
     # fig, ax = plt.subplots()
