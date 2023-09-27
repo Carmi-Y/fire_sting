@@ -447,7 +447,7 @@ def make_single_exp_plots(times, oxygen_concentrations, reaction_rate_row ,title
     fig, ax = plt.subplots()
     ax.scatter(times, oxygen_concentrations)
     ax.set_xlabel("Elapsed Time (s)")
-    ax.set_ylabel("$[O_{2}] µM$")
+    ax.set_ylabel("$[O_{2}] µmol$")
     ax.set_title(title)
     
     # Remove ticks from Y axis
@@ -468,6 +468,26 @@ def make_single_exp_plots(times, oxygen_concentrations, reaction_rate_row ,title
     plt.close("all")
 
 
+def add_growth_iriadiance_measurement_irradiance_column(reaction_rates):
+    '''
+    Description
+    ------------
+    Add a column to the reaction rates dataframe containing the measurement irradiance saparated by comma from the growth irradiance
+
+    Parameters
+    ----------
+    reaction_rates : pandas.DataFrame
+        The dataframe containing the reaction rates
+
+    Returns
+    -------
+    reaction_rates : pandas.DataFrame
+        The dataframe containing the reaction rates with the added column
+    '''
+    reaction_rates["growth_iriadiance_measurement_irradiance"] = "g" + reaction_rates["growth_irradiance"].astype(str) + ",m" + reaction_rates["measurement_irradiance"].astype(str) + "  "
+    return reaction_rates
+
+
 def make_reaction_rate_plots(reaction_rates, save_dir):
     '''
     Plot the reaction rates and save to files
@@ -483,44 +503,34 @@ def make_reaction_rate_plots(reaction_rates, save_dir):
     -------
     None   
     '''
-    
-    phase_1_data = reaction_rates[reaction_rates["growth_phase"] == 1]
+    reaction_rates_for_graphs = add_growth_iriadiance_measurement_irradiance_column(reaction_rates)
+    clrs = ["#B2F0E8", "#117C6F"]
+
+    phase_1_data = reaction_rates_for_graphs[reaction_rates_for_graphs["growth_phase"] == 1]
 
     # Make the box plot for phase 1 reaction rates
-    fig, ax = plt.subplots()
-    fig.suptitle("Reaction Rates phase 1")
-    sns.boxplot(x="measurement_irradiance", y="reaction_rate", hue="is_in_light", data=phase_1_data, ax=ax)
+    fig, ax = plt.subplots(figsize=(12, 10))
+    fig.suptitle("Reaction Rates for phase 1 smaples", fontsize=20)
+    sns.boxplot(x="growth_iriadiance_measurement_irradiance", y="reaction_rate", hue="is_in_light", data=phase_1_data, ax=ax, palette=clrs)
 
-    ax.set_xlabel("Measurement Irradiance (µmol photons m-2 s-1)")
-    ax.set_ylabel("Reaction Rate (µM/s)")
+    ax.set_xlabel(r"Growth Irradiance, Measurement Irradiance (photons $\frac{%s}{%s}$)" % ("µmol", "m^2s"))
+    ax.set_ylabel(r"Reaction Rate (Δ$[O_{2}]$ $\frac{%s}{%s}$)" % ("µmol", "s"))
     plt.savefig(f"{save_dir}/reaction_rates_phase_1.png")
     plt.close("all")
-    
+
 
     # Get all the phase 2 data
-    phase_2_data = reaction_rates[reaction_rates["growth_phase"] == 2]
+    phase_2_data = reaction_rates_for_graphs[reaction_rates_for_graphs["growth_phase"] == 2]
 
-    
-    # fig, ax = plt.subplots()
-    # fig.suptitle("Reaction Rates", fontsize=25)
-    # # Put a boxplot from sns in ax[0] for the light reaction rates
-    # sns.boxplot(x="display_name", y="reaction_rate_light", data=reaction_rates, ax=ax)
-    # ax.set_title("Light")
-    # ax.set_ylabel("Reaction Rate (µM/s)")
-    # ax.tick_params(axis='x', labelrotation=-90)
-    # # Save the figure
-    # plt.savefig(f"{save_dir}/reaction_rates_light.png")
-    # plt.close("all")
+    # Make the box plot for phase 2 reaction rates
+    fig, ax = plt.subplots(figsize=(12, 10))
+    fig.suptitle("Reaction Rates for phase 2 smaples", fontsize=20)
+    sns.boxplot(x="growth_iriadiance_measurement_irradiance", y="reaction_rate", hue="is_in_light", data=phase_2_data, ax=ax, palette=clrs)
 
-    # fig, ax = plt.subplots()
-    # sns.boxplot(x="display_name", y="reaction_rate_dark", data=reaction_rates, ax=ax)
-    # ax.set_title("Dark")
-    # ax.set_xlabel("Growth and Measurement Conditions")
-    # ax.set_ylabel("Reaction Rate (µM/s)")
-
-    # ax.tick_params(axis='x', labelrotation=90)
-    # plt.savefig(f"{save_dir}/reaction_rates_dark.png")
-    # plt.close("all")
+    ax.set_xlabel(r"Growth Irradiance, Measurement Irradiance (photons $\frac{%s}{%s}$)" % ("µmol", "m^2s"))
+    ax.set_ylabel(r"Reaction Rate (Δ$[O_{2}]$ $\frac{%s}{%s}$)" % ("µmol", "s"))
+    plt.savefig(f"{save_dir}/reaction_rates_phase_2.png")
+    plt.close("all")
 
 
 def create_directory(parent_directory, nested_directory_name):
