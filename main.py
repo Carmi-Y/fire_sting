@@ -454,16 +454,7 @@ def make_single_exp_plots(times, oxygen_concentrations, reaction_rate_row ,title
     ax.yaxis.set_ticks_position('none')
     # Remove ticks from X axis top
     ax.xaxis.set_ticks_position('bottom')
-    
-    # Add the reaction rate to the plot as a legend
-    # reaction_rate_light = reaction_rate_row["reaction_rate_light"]
-    # reaction_rate_light = f"{reaction_rate_light:.2f}"
-    # ax.legend([f"Reaction Rate Light: {reaction_rate_light} µM/s"])
-    
-    # reaction_rate_dark = reaction_rate_row["reaction_rate_dark"]
-    # reaction_rate_dark = f"{reaction_rate_dark:.2f}"
-    # ax.legend([f"Reaction Rate Dark: {reaction_rate_dark} µM/s"])
-    
+        
     plt.savefig(f"{save_dir}/{title}.png")
     plt.close("all")
 
