@@ -23,6 +23,8 @@ def main():
     # Grab all txt files in the directory
     files = glob.glob(f"{input_path}/*.txt")
     
+    light_and_dark_times = pd.read_csv(os.path.join(input_path, 'times.csv'))
+
     raw_data_all_files_df = []
 
     # Get the needed data from each file
@@ -69,7 +71,7 @@ def main():
     oxygen_data = oxygen_data.set_index("file_name")
 
     # Get the reaction rates for each file
-    reaction_rates = get_reaction_rates_df(oxygen_data)
+    reaction_rates = get_reaction_rates_df(oxygen_data, light_and_dark_times)
 
     # Save the reaction rates to an excel file
     reaction_rates.to_excel(f"{output_path}/reaction_rates.xlsx", index=False)
@@ -330,7 +332,7 @@ def add_to_lists(file_names, file_name,
     is_in_lights.append(is_in_light)
     
 
-def get_reaction_rates_df(merged_data):
+def get_reaction_rates_df(merged_data, light_and_dark_times):
     '''
     Description
     ------------
@@ -340,6 +342,8 @@ def get_reaction_rates_df(merged_data):
     ----------
     merged_data : pandas.DataFrame
         The flattened dataframe containing the data from all files, indexed by file_name
+    light_and_dark_times : pandas.DataFrame
+        The dataframe containing the start and end times of the light and dark phases of the measurement
     
     Returns
     -------
@@ -373,14 +377,33 @@ def get_reaction_rates_df(merged_data):
         #get the experiment conditions from the file name
         expreriment_date, growth_irradiance, measurement_irradiance, growth_phase = get_exp_conditions_from_file_name(file_name)
 
+        # Get the light and dark times for the file from the light_and_dark_times dataframe
+        light_and_dark_times_for_file = light_and_dark_times[light_and_dark_times["file_name"] == file_name]
+
+        if len(light_and_dark_times_for_file) > 1:
+            raise ValueError(f"Found more than one light and dark times for file: {file_name}. Names in the times.csv file must be unique")
+        elif len(light_and_dark_times_for_file) == 0:
+            light_and_dark_times_for_file = light_and_dark_times[light_and_dark_times["file_name"] == "default"]
+
+        # If the user put more than one default entry in the times.csv file, raise an error
+        if len(light_and_dark_times_for_file) != 1:
+            raise ValueError(f"Found more than one default light and dark times. default can only appear once in the times.csv file")
+
+        # Only one row fattched from the dataframe, extract the data
+        light_and_dark_times_for_file = light_and_dark_times_for_file.iloc[0]
+        light_start_time_sec = int(light_and_dark_times_for_file['light_start_time_sec'])
+        light_end_time_sec = int(light_and_dark_times_for_file['light_end_time_sec'])
+        dark_start_time_sec = int(light_and_dark_times_for_file['dark_start_time_sec'])
+        dark_end_time_sec = int(light_and_dark_times_for_file['dark_end_time_sec'])
+    
         # Itarate over them as well
         for channel in unique_channels:
             channel_data = file_data[file_data["channel"] == channel]
 
             # Get the data between 10 and 50 seconds
-            light_data = channel_data[(channel_data["elapsed_time(s)"] >= 10) & (channel_data["elapsed_time(s)"] <= 50)]
+            light_data = channel_data[(channel_data["elapsed_time(s)"] >= light_start_time_sec) & (channel_data["elapsed_time(s)"] <= light_end_time_sec)]
             # Get the data between 70 and 230 seconds
-            dark_data = channel_data[(channel_data["elapsed_time(s)"] >= 70) & (channel_data["elapsed_time(s)"] <= 230)]
+            dark_data = channel_data[(channel_data["elapsed_time(s)"] >= dark_start_time_sec) & (channel_data["elapsed_time(s)"] <= dark_end_time_sec)]
 
             # Get the light phase data
             slope_light, intercept_light, r_value_light, p_value_light, std_err_light = scipy.stats.linregress(list(light_data["elapsed_time(s)"]), list(light_data["[O2]"]))
@@ -501,11 +524,11 @@ def make_reaction_rate_plots(reaction_rates, save_dir):
 
     # Make the box plot for phase 1 reaction rates
     fig, ax = plt.subplots(figsize=(12, 10))
-    fig.suptitle("Reaction Rates for phase 1 smaples", fontsize=20)
+    fig.suptitle("Oxygen production rate for phase 1 smaples", fontsize=20)
     sns.boxplot(x="growth_iriadiance_measurement_irradiance", y="reaction_rate", hue="is_in_light", data=phase_1_data, ax=ax, palette=clrs)
 
     ax.set_xlabel(r"Growth Irradiance, Measurement Irradiance (photons $\frac{%s}{%s}$)" % ("µmol", "m^2s"))
-    ax.set_ylabel(r"Reaction Rate (Δ$[O_{2}]$ $\frac{%s}{%s}$)" % ("µmol", "s"))
+    ax.set_ylabel(r"Δ$[O_{2}]$ $\frac{%s}{%s}$)" % ("µmol", "s"))
     plt.savefig(f"{save_dir}/reaction_rates_phase_1.png")
     plt.close("all")
 
@@ -515,11 +538,11 @@ def make_reaction_rate_plots(reaction_rates, save_dir):
 
     # Make the box plot for phase 2 reaction rates
     fig, ax = plt.subplots(figsize=(12, 10))
-    fig.suptitle("Reaction Rates for phase 2 smaples", fontsize=20)
+    fig.suptitle("Oxygen production rate for phase 2 smaples", fontsize=20)
     sns.boxplot(x="growth_iriadiance_measurement_irradiance", y="reaction_rate", hue="is_in_light", data=phase_2_data, ax=ax, palette=clrs)
 
     ax.set_xlabel(r"Growth Irradiance, Measurement Irradiance (photons $\frac{%s}{%s}$)" % ("µmol", "m^2s"))
-    ax.set_ylabel(r"Reaction Rate (Δ$[O_{2}]$ $\frac{%s}{%s}$)" % ("µmol", "s"))
+    ax.set_ylabel(r"Δ$[O_{2}]$ $\frac{%s}{%s}$)" % ("µmol", "s"))
     plt.savefig(f"{save_dir}/reaction_rates_phase_2.png")
     plt.close("all")
 
