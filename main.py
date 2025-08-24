@@ -3,102 +3,96 @@ import glob
 import scipy
 import pathlib
 import argparse
-import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-import scienceplots
 
 def main():
-    # Set up the argument parser
+    # Fetch the location of the input and output folders the user provided
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--input_path', help='The input directory path containing raw text files to be processed', required=True)
     parser.add_argument('-o', '--output_path', help='The output directory', required=True)
-    
     args = parser.parse_args()
     input_path = os.path.normpath(args.input_path)
     output_path = os.path.normpath(args.output_path)
 
+
     # Grab all txt files in the directory
-    files = glob.glob(f"{input_path}/*.txt")
-    
+    files = glob.glob(f'{input_path}/*.txt')
+    # Also grab the file specifing the time windows to calculate the regressions on
     light_and_dark_times = pd.read_csv(os.path.join(input_path, 'times.csv'))
 
-    raw_data_all_files_df = []
 
-    # Get the needed data from each file
+    # Get the needed data from each file and store in a list to be made into a dataframe
+    raw_data = []
     for file in files:
         file_path = os.path.normpath(file)
         # Get the file name without the extension
         file_name = pathlib.Path(file_path).stem
         
         # Read the content of the file
-        content = read_data(file_path)
+        content = read_fire_sting_data(file_path)
         
-        # This isn't the best way to do this as it saves a text file to be read into memory again.
-        # But it works and isn't slow so maybe fix it later
-        write_content(content, f"{output_path}/raw_{file_name}.txt", file_name)
-
-        # Read content to pandas dataframe
-        data = pd.read_csv(f"{output_path}/raw_{file_name}.txt")
+        # This isn't the best way to do this as it saves a text file to be read into memory again. But it works and isn't slow
+        write_content(content, f'{output_path}/raw_{file_name}.txt', file_name)
+        data = pd.read_csv(f'{output_path}/raw_{file_name}.txt')
 
         # Remove the saved text files from the output directory
-        os.remove(f"{output_path}/raw_{file_name}.txt")
+        os.remove(f'{output_path}/raw_{file_name}.txt')
 
         # Remove the last columns, they have no useful data
         data = data.iloc[:, :-19]
-        # Also remove the "Comment" column, it has no useful data
-        data = data.drop(columns=["Comment"])
+        # Also remove the 'Comment' column, it has no useful data
+        data = data.drop(columns=['Comment'])
 
-        data.columns = ["file_name", "date", "time", "elapsed_time(s)", 1, 2, 3, 4, "Ch1_temperature", "Ch2_temperature", "Ch3_temperature", "Ch4_temperature"]
-        raw_data_all_files_df.append(data)
+        # Set the column names
+        data.columns = ['file_name', 'date', 'time', 'elapsed_time(s)', 1, 2, 3, 4, 'Ch1_temperature', 'Ch2_temperature', 'Ch3_temperature', 'Ch4_temperature']
+        raw_data.append(data)
 
 
-    # Add files data to a dataframe containing all the data
-    raw_data_all_files_df = pd.concat(raw_data_all_files_df, ignore_index=True)
+    # Put the raw data into a dataframes from the lists
+    raw_data_df = pd.concat(raw_data, ignore_index=True)
 
-    oxygen_data = flatten_data(raw_data_all_files_df)
+    oxygen_data = flatten_data(raw_data_df)
 
     # Make sure the numaric fields are actually numeric
-    oxygen_data["elapsed_time(s)"] = pd.to_numeric(oxygen_data["elapsed_time(s)"])
-    oxygen_data["[O2]"] = pd.to_numeric(oxygen_data["[O2]"])
+    oxygen_data['elapsed_time(s)'] = pd.to_numeric(oxygen_data['elapsed_time(s)'])
+    oxygen_data['[O2]'] = pd.to_numeric(oxygen_data['[O2]'])
 
     # Save the data from all files to an excel file
-    oxygen_data.to_excel(f"{output_path}/oxygen_data.xlsx", index=False)
+    oxygen_data.to_csv(f'{output_path}/oxygen_data.csv', index=False)
     
     # Index merged_data by file_name
-    oxygen_data = oxygen_data.set_index("file_name")
+    oxygen_data = oxygen_data.set_index('file_name')
 
     # Get the reaction rates for each file
     reaction_rates = get_reaction_rates_df(oxygen_data, light_and_dark_times)
 
     # Save the reaction rates to an excel file
-    reaction_rates.to_excel(f"{output_path}/reaction_rates.xlsx", index=False)
+    reaction_rates.to_csv(f'{output_path}/reaction_rates.csv', index=False)
 
     # Create a dir for the graphs
-    graphs_dir = create_directory(output_path, "graphs")
+    graphs_dir = create_directory(output_path, 'graphs')
 
-    # Graph the data
-    styles = ['notebook', 'grid']
-    plt.style.use(styles)
-
+    plt.style.use('seaborn-v0_8-whitegrid')
     # Iterate the rows of reaction_rates dataframe and plot the data with it's reaction rate
     for index, row in reaction_rates.iterrows():
-        file_name = row["file_name"]
-        channel = row["chanel"]
+        file_name = row['file_name']
+        channel = row['chanel']
 
         # Get the oxygen data rows where the file name and channel match the values from reaction_rates
-        oxygen_data_rows = oxygen_data.loc[(oxygen_data.index == file_name) & (oxygen_data["channel"] == channel)]
+        oxygen_data_rows = oxygen_data.loc[(oxygen_data.index == file_name) & (oxygen_data['channel'] == channel)]
         
-        make_single_exp_plots(oxygen_data_rows["elapsed_time(s)"], oxygen_data_rows["[O2]"], row, f"{file_name}_{channel}", graphs_dir) 
+        make_single_experiment_plot(oxygen_data_rows['elapsed_time(s)'], oxygen_data_rows['[O2]'], row, f'{file_name}_{channel}', graphs_dir) 
     
     # Plot the reaction rates
     make_reaction_rate_plots(reaction_rates, graphs_dir)
 
+
 def find_data_start_index(content, search_string):
     '''
-    Find the index of the row that contains the search string
+    Find the index of the row that contains the column names
 
     Parameters
     ----------
@@ -114,18 +108,18 @@ def find_data_start_index(content, search_string):
     '''
     indexes = []
 
-    for index, row in enumerate(content.split("\n")):
+    for index, row in enumerate(content.split('\n')):
         if search_string in row:
             indexes.append(index)
 
     if len(indexes) != 1:
-        raise ValueError(f"Found more than one data start index. Indexes: {indexes}")
+        raise ValueError(f'Found more than one data start index. Indexes: {indexes}')
     return indexes[0]
 
 
-def read_data(file_path):
+def read_fire_sting_data(file_path):
     '''
-    Read data from a file
+    Read the data from a fire sting format text file
     
     Parameters
     ----------
@@ -135,24 +129,24 @@ def read_data(file_path):
     Returns
     -------
     content : str
-        The content of the file
+        The content of the file, comma seperated
     '''
-    with open(file_path, "r") as file:
+    with open(file_path, 'r') as file:
         content = file.read()
 
-    data_start_index = find_data_start_index(content, "Date\tTime (HH:MM:SS)\tTime (s)\tComment\tCh1\tCh2\tCh3\tCh4")
+    data_start_index = find_data_start_index(content, 'Date\tTime (HH:MM:SS)\tTime (s)\tComment\tCh1\tCh2\tCh3\tCh4')
 
     # Trim the content to only contain the data
-    content = content.split("\n")[data_start_index:]
+    content = content.split('\n')[data_start_index:]
     # Remove the last row, it's empty
     content = content[:-1]
     # Replace tabs with commas
-    return [row.replace("\t", ",") for row in content]
+    return [row.replace('\t', ',') for row in content]
 
 
 def write_content(content, path, file_name):
     '''
-    Write content to a file
+    Write the content of a fire sting formatted file
 
     Parameters
     ----------
@@ -166,7 +160,7 @@ def write_content(content, path, file_name):
     None
     '''
     path = os.path.normpath(path)
-    with open(path, "w") as output_file:
+    with open(path, 'w') as output_file:
         for i, item in enumerate(content):
             if i == 0:
                 output_file.write(f'file_name,{item} \n')
@@ -178,7 +172,7 @@ def flatten_data(raw_data_all_files_df):
     '''
     Description
     ------------
-    Flatten the data from all files into a single dataframe
+    Flatten the channels data into rows (wide table design to long)
 
     Parameters
     ----------
@@ -191,25 +185,25 @@ def flatten_data(raw_data_all_files_df):
         The flattened dataframe
     '''
     # Flatten the dataframe in two steps, first melt the oxygen data, then melt the temperature data
-    id_vars = ['file_name', 'date', 'time', 'elapsed_time(s)', "Ch1_temperature", "Ch2_temperature", "Ch3_temperature", "Ch4_temperature"]
+    id_vars = ['file_name', 'date', 'time', 'elapsed_time(s)', 'Ch1_temperature', 'Ch2_temperature', 'Ch3_temperature', 'Ch4_temperature']
     value_vars = [1, 2, 3, 4]
     oxygen_data_df = raw_data_all_files_df.melt(id_vars=id_vars, value_vars=value_vars, var_name='channel', value_name='[O2]')
 
     # Melt the temperature fields
-    id_vars = ['file_name', 'date', 'time', 'elapsed_time(s)', "[O2]", "channel"]
-    value_vars = ["Ch1_temperature", "Ch2_temperature", "Ch3_temperature", "Ch4_temperature"]
+    id_vars = ['file_name', 'date', 'time', 'elapsed_time(s)', '[O2]', 'channel']
+    value_vars = ['Ch1_temperature', 'Ch2_temperature', 'Ch3_temperature', 'Ch4_temperature']
     merged_data = oxygen_data_df.melt(id_vars=id_vars, value_vars=value_vars, value_name='temperature')
 
-    # Remove rows with no data, they contain "---"
-    merged_data = merged_data[merged_data['[O2]'] != "---"]
+    # Remove rows with no data, they contain '---'
+    merged_data = merged_data[merged_data['[O2]'] != '---']
 
-    # Remove the "variable" column, it has no useful data
-    merged_data = merged_data.drop(columns=["variable"])
+    # Remove the 'variable' column, it has no useful data
+    merged_data = merged_data.drop(columns=['variable'])
 
     return merged_data
 
 
-def get_exp_conditions_from_file_name(file_name):
+def get_experiment_conditions(file_name):
     '''
     Description
     ------------
@@ -231,17 +225,17 @@ def get_exp_conditions_from_file_name(file_name):
     growth_phase : int
         The number of the growth phase (1 or 2)
     '''
-    split_file_name = file_name.split(" ")
+    split_file_name = file_name.split(' ')
     
     growth_irradiance = int(split_file_name[0])
 
     measurement_irradiance_str = split_file_name[1]
-    if measurement_irradiance_str == "invivo":
+    if measurement_irradiance_str == 'invivo':
         measurement_irradiance = 100
-    elif measurement_irradiance_str == "max":
+    elif measurement_irradiance_str == 'max':
         measurement_irradiance = 3000
     else:
-        raise ValueError(f"Invalid measurement irradiance: {measurement_irradiance_str}")
+        raise ValueError(f'Invalid measurement irradiance: {measurement_irradiance_str}')
     
     growth_phase = int(split_file_name[2][1])
 
@@ -336,7 +330,9 @@ def get_reaction_rates_df(merged_data, light_and_dark_times):
     '''
     Description
     ------------
-    Calculate the reaction rates for each file. The first minute of measurement is done is light and the last 3 minutes are done in the dark
+    Calculate the reaction rates for each file in the dark and light.
+    The first minute of measurement is assumed to be done is light and the last 3 minutes are done in the dark.
+    Times provided in 'times.csv' will change the reaction rate calculation file-wise
 
     Parameters
     ----------
@@ -353,7 +349,7 @@ def get_reaction_rates_df(merged_data, light_and_dark_times):
     # Get the file names
     unique_file_names = merged_data.index.unique()
 
-    # Initialize lists to store the data
+    # Hold the data in lists and than create a df from them
     file_names = []
     expreriment_dates = []
     growth_irradiances = []
@@ -372,22 +368,22 @@ def get_reaction_rates_df(merged_data, light_and_dark_times):
         file_data = merged_data.xs(file_name)
 
         # Get the unique channels - as they need to have their own reaction rate entry
-        unique_channels = file_data["channel"].unique()
+        channels = file_data['channel'].unique()
 
         #get the experiment conditions from the file name
-        expreriment_date, growth_irradiance, measurement_irradiance, growth_phase = get_exp_conditions_from_file_name(file_name)
+        expreriment_date, growth_irradiance, measurement_irradiance, growth_phase = get_experiment_conditions(file_name)
 
         # Get the light and dark times for the file from the light_and_dark_times dataframe
-        light_and_dark_times_for_file = light_and_dark_times[light_and_dark_times["file_name"] == file_name]
+        light_and_dark_times_for_file = light_and_dark_times[light_and_dark_times['file_name'] == file_name]
 
         if len(light_and_dark_times_for_file) > 1:
-            raise ValueError(f"Found more than one light and dark times for file: {file_name}. Names in the times.csv file must be unique")
+            raise ValueError(f'Found more than one light and dark times for file: {file_name}. Names in the times.csv file must be unique')
         elif len(light_and_dark_times_for_file) == 0:
-            light_and_dark_times_for_file = light_and_dark_times[light_and_dark_times["file_name"] == "default"]
+            light_and_dark_times_for_file = light_and_dark_times[light_and_dark_times['file_name'] == 'default']
 
         # If the user put more than one default entry in the times.csv file, raise an error
         if len(light_and_dark_times_for_file) != 1:
-            raise ValueError(f"Found more than one default light and dark times. default can only appear once in the times.csv file")
+            raise ValueError(f'Found more than one default light and dark times. default can only appear once in the times.csv file')
 
         # Only one row fattched from the dataframe, extract the data
         light_and_dark_times_for_file = light_and_dark_times_for_file.iloc[0]
@@ -397,18 +393,18 @@ def get_reaction_rates_df(merged_data, light_and_dark_times):
         dark_end_time_sec = int(light_and_dark_times_for_file['dark_end_time_sec'])
     
         # Itarate over them as well
-        for channel in unique_channels:
-            channel_data = file_data[file_data["channel"] == channel]
+        for channel in channels:
+            channel_data = file_data[file_data['channel'] == channel]
 
             # Get the data between 10 and 50 seconds
-            light_data = channel_data[(channel_data["elapsed_time(s)"] >= light_start_time_sec) & (channel_data["elapsed_time(s)"] <= light_end_time_sec)]
+            light_data = channel_data[(channel_data['elapsed_time(s)'] >= light_start_time_sec) & (channel_data['elapsed_time(s)'] <= light_end_time_sec)]
             # Get the data between 70 and 230 seconds
-            dark_data = channel_data[(channel_data["elapsed_time(s)"] >= dark_start_time_sec) & (channel_data["elapsed_time(s)"] <= dark_end_time_sec)]
+            dark_data = channel_data[(channel_data['elapsed_time(s)'] >= dark_start_time_sec) & (channel_data['elapsed_time(s)'] <= dark_end_time_sec)]
 
             # Get the light phase data
-            slope_light, intercept_light, r_value_light, p_value_light, std_err_light = scipy.stats.linregress(list(light_data["elapsed_time(s)"]), list(light_data["[O2]"]))
+            slope_light, intercept_light, r_value_light, p_value_light, std_err_light = scipy.stats.linregress(list(light_data['elapsed_time(s)']), list(light_data['[O2]']))
             # Get the dark phase data
-            slope_dark, intercept_dark, r_value_dark, p_value_dark, std_err_dark = scipy.stats.linregress(list(dark_data["elapsed_time(s)"]), list(dark_data["[O2]"]))
+            slope_dark, intercept_dark, r_value_dark, p_value_dark, std_err_dark = scipy.stats.linregress(list(dark_data['elapsed_time(s)']), list(dark_data['[O2]']))
 
             # Append the data to the lists - first row row light, second row for dark
             add_to_lists(file_names, file_name,
@@ -422,7 +418,7 @@ def get_reaction_rates_df(merged_data, light_and_dark_times):
                          r_values, r_value_light,
                          p_values, p_value_light,
                          std_errs, std_err_light,
-                         is_in_lights, "Yes")
+                         is_in_lights, 'Yes')
             
             add_to_lists(file_names, file_name,
                          expreriment_dates, expreriment_date,
@@ -435,18 +431,18 @@ def get_reaction_rates_df(merged_data, light_and_dark_times):
                          r_values, r_value_dark,
                          p_values, p_value_dark,
                          std_errs, std_err_dark,
-                         is_in_lights, "No")
+                         is_in_lights, 'No')
 
 
-    reaction_rates_df = pd.DataFrame({ "file_name": file_names, "date": expreriment_dates, "is_in_light": is_in_lights, "growth_phase": growth_phases,
-                                    "growth_irradiance": growth_irradiances, "measurement_irradiance": measurement_irradiances,
-                                    "chanel": chanels, "reaction_rate": reaction_rates, "intercept": intercepts,
-                                    "r_value": r_values, "p_value": p_values, "std_err": std_errs })
+    reaction_rates_df = pd.DataFrame({ 'file_name': file_names, 'date': expreriment_dates, 'is_in_light': is_in_lights, 'growth_phase': growth_phases,
+                                    'growth_irradiance': growth_irradiances, 'measurement_irradiance': measurement_irradiances,
+                                    'chanel': chanels, 'reaction_rate': reaction_rates, 'intercept': intercepts,
+                                    'r_value': r_values, 'p_value': p_values, 'std_err': std_errs })
     
     return reaction_rates_df
 
 
-def make_single_exp_plots(times, oxygen_concentrations, reaction_rate_row ,title, save_dir):
+def make_single_experiment_plot(times, oxygen_concentrations, reaction_rate_row ,title, save_dir):
     '''
     Plot the data
 
@@ -469,8 +465,8 @@ def make_single_exp_plots(times, oxygen_concentrations, reaction_rate_row ,title
     '''
     fig, ax = plt.subplots()
     ax.scatter(times, oxygen_concentrations)
-    ax.set_xlabel("Elapsed Time (s)")
-    ax.set_ylabel("$[O_{2}] µmol$")
+    ax.set_xlabel('Elapsed Time (s)')
+    ax.set_ylabel('$[O_{2}] µmol$')
     ax.set_title(title)
     
     # Remove ticks from Y axis
@@ -478,8 +474,8 @@ def make_single_exp_plots(times, oxygen_concentrations, reaction_rate_row ,title
     # Remove ticks from X axis top
     ax.xaxis.set_ticks_position('bottom')
         
-    plt.savefig(f"{save_dir}/{title}.png")
-    plt.close("all")
+    plt.savefig(f'{save_dir}/{title}.png')
+    plt.close('all')
 
 
 def add_growth_iriadiance_measurement_irradiance_column(reaction_rates):
@@ -498,7 +494,7 @@ def add_growth_iriadiance_measurement_irradiance_column(reaction_rates):
     reaction_rates : pandas.DataFrame
         The dataframe containing the reaction rates with the added column
     '''
-    reaction_rates["growth_iriadiance_measurement_irradiance"] = "g" + reaction_rates["growth_irradiance"].astype(str) + ",m" + reaction_rates["measurement_irradiance"].astype(str) + "  "
+    reaction_rates['growth_iriadiance_measurement_irradiance'] = 'g' + reaction_rates['growth_irradiance'].astype(str) + ',m' + reaction_rates['measurement_irradiance'].astype(str) + '  '
     return reaction_rates
 
 
@@ -518,33 +514,33 @@ def make_reaction_rate_plots(reaction_rates, save_dir):
     None   
     '''
     reaction_rates_for_graphs = add_growth_iriadiance_measurement_irradiance_column(reaction_rates)
-    clrs = ["#B2F0E8", "#117C6F"]
+    clrs = ['#B2F0E8', '#117C6F']
 
-    phase_1_data = reaction_rates_for_graphs[reaction_rates_for_graphs["growth_phase"] == 1]
+    phase_1_data = reaction_rates_for_graphs[reaction_rates_for_graphs['growth_phase'] == 1]
 
     # Make the box plot for phase 1 reaction rates
     fig, ax = plt.subplots(figsize=(12, 10))
-    fig.suptitle("Oxygen production rate for phase 1 smaples", fontsize=20)
-    sns.boxplot(x="growth_iriadiance_measurement_irradiance", y="reaction_rate", hue="is_in_light", data=phase_1_data, ax=ax, palette=clrs)
+    fig.suptitle('Oxygen production rate for phase 1 smaples', fontsize=20)
+    sns.boxplot(x='growth_iriadiance_measurement_irradiance', y='reaction_rate', hue='is_in_light', data=phase_1_data, ax=ax, palette=clrs)
 
-    ax.set_xlabel(r"Growth Irradiance, Measurement Irradiance (photons $\frac{%s}{%s}$)" % ("µmol", "m^2s"))
-    ax.set_ylabel(r"Δ$[O_{2}]$ $\frac{%s}{%s}$)" % ("µmol", "s"))
-    plt.savefig(f"{save_dir}/reaction_rates_phase_1.png")
-    plt.close("all")
+    ax.set_xlabel(r'Growth Irradiance, Measurement Irradiance (photons $\frac{%s}{%s}$)' % ('µmol', 'm^2s'))
+    ax.set_ylabel(r'Δ$[O_{2}]$ $\frac{%s}{%s}$)' % ('µmol', 's'))
+    plt.savefig(f'{save_dir}/reaction_rates_phase_1.png')
+    plt.close('all')
 
 
     # Get all the phase 2 data
-    phase_2_data = reaction_rates_for_graphs[reaction_rates_for_graphs["growth_phase"] == 2]
+    phase_2_data = reaction_rates_for_graphs[reaction_rates_for_graphs['growth_phase'] == 2]
 
     # Make the box plot for phase 2 reaction rates
     fig, ax = plt.subplots(figsize=(12, 10))
-    fig.suptitle("Oxygen production rate for phase 2 smaples", fontsize=20)
-    sns.boxplot(x="growth_iriadiance_measurement_irradiance", y="reaction_rate", hue="is_in_light", data=phase_2_data, ax=ax, palette=clrs)
+    fig.suptitle('Oxygen production rate for phase 2 smaples', fontsize=20)
+    sns.boxplot(x='growth_iriadiance_measurement_irradiance', y='reaction_rate', hue='is_in_light', data=phase_2_data, ax=ax, palette=clrs)
 
-    ax.set_xlabel(r"Growth Irradiance, Measurement Irradiance (photons $\frac{%s}{%s}$)" % ("µmol", "m^2s"))
-    ax.set_ylabel(r"Δ$[O_{2}]$ $\frac{%s}{%s}$)" % ("µmol", "s"))
-    plt.savefig(f"{save_dir}/reaction_rates_phase_2.png")
-    plt.close("all")
+    ax.set_xlabel(r'Growth Irradiance, Measurement Irradiance (photons $\frac{%s}{%s}$)' % ('µmol', 'm^2s'))
+    ax.set_ylabel(r'Δ$[O_{2}]$ $\frac{%s}{%s}$)' % ('µmol', 's'))
+    plt.savefig(f'{save_dir}/reaction_rates_phase_2.png')
+    plt.close('all')
 
 
 def create_directory(parent_directory, nested_directory_name):
@@ -568,5 +564,5 @@ def create_directory(parent_directory, nested_directory_name):
     return new_dir_path
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()
